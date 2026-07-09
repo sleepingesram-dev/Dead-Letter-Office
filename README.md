@@ -14,13 +14,17 @@ The core fantasy:
 
 The playable MVP (the two-shift vertical slice defined in the [production plan](docs/10-production.md)) is in this repository. It is plain HTML/CSS/JS — no engine, no build step, no dependencies.
 
+**Play in the browser:** https://sleepingesram-dev.github.io/Dead-Letter-Office/ — deployed automatically to GitHub Pages by [a workflow](.github/workflows/deploy-pages.yml) on every push to `main`.
+
+**Or run locally:**
+
 ```
 git clone https://github.com/sleepingesram-dev/Dead-Letter-Office.git
 cd Dead-Letter-Office
 python3 -m http.server 8000     # or any static server; opening index.html directly also works
 ```
 
-Then open `http://localhost:8000` in a browser. It also runs as-is on GitHub Pages (serve from the repository root).
+Then open `http://localhost:8000` in a browser.
 
 **How to play:** take each item from the tray, inspect the envelope (flip it, open it), cross-reference the address registry, death records, policy manual, and wall map, then choose a stamp — RETURN TO SENDER, ARCHIVE, or DESTROY. Policy tells you what the office wants. The letters tell you something else. Your choices carry across both shifts and change what you see. Headphones recommended; sound is synthesized live and can be toggled off.
 
