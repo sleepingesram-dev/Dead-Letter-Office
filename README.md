@@ -26,7 +26,7 @@ python3 -m http.server 8000     # or any static server; opening index.html direc
 
 Then open `http://localhost:8000` in a browser.
 
-**How to play:** take each item from the tray, inspect the envelope (flip it, open it), cross-reference the address registry, death records, policy manual, and wall map, then choose a stamp — RETURN TO SENDER, ARCHIVE, or DESTROY. Policy tells you what the office wants. The letters tell you something else. Your choices carry across both shifts and change what you see. Headphones recommended; sound is synthesized live and can be toggled off.
+**How to play:** the first letter walks you through the procedure step by step. For every item: take it from the tray, inspect the envelope (flip it, open it), then verify what it claims — the sender's town against the ADDRESS REGISTRY, and (from Shift 2) every name against the REGISTER OF DEATHS. **FORM 11**, pinned beneath each item, fills in as you check the records and states plainly what policy directs. Then choose a stamp — RETURN TO SENDER, ARCHIVE, or DESTROY. Policy tells you what the office wants; the letters tell you something else, and every deviation is recorded. A DESK REFERENCE panel in the sidebar explains all of it in one place. Your choices carry across both shifts and change what you see. Headphones recommended; sound is synthesized live and can be toggled off.
 
 **What's in the slice:** 2 full shifts, all 15 MVP letters, the Ruth/Jonah/Eleanor storylines, the black-sealed envelope, the previous clerk's note, the UV lamp, a burned letter that comes back, an archive that changes behind your back, a wall map that gains a house, an office compliance review, and the demo cliffhanger ending.
 
