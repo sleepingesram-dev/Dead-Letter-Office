@@ -98,7 +98,7 @@ DLO.DATA = {
         "The incinerator room logs each use. The log is reviewed."
       ],
       items: ["s2-07", "s2-08", "s2-09", "s2-10", "s2-12", "s2-13", "s2-14"],
-      unlocks: ["deaths", "uv"]
+      unlocks: ["deaths", "uv", "news"]
     }
   ],
 
@@ -518,6 +518,19 @@ DLO.DATA = {
       tags: ["bell", "burned"]
     }
   },
+
+  /* ---- Newspaper archive (unlocked Shift 2) ---- */
+  newspaper: [
+    { paper: "THE HARLOW COURIER", date: "MARCH 6, 1958",
+      head: "CANAL FLOOD CLAIMS TWO — MARROW CREEK",
+      body: "The county has confirmed two drowned in Tuesday's failure of the flood canal gate: a rail worker, 44, and a boy, 9. Names are withheld pending notification. Residents dispute the count. The county reminds residents that the official count is the count." },
+    { paper: "THE HARLOW COURIER", date: "JUNE 5, 1960",
+      head: "RELOCATION SCHEDULE POSTED FOR CREEK RESIDENTS",
+      body: "Notices were posted Monday on doors along Briar Lane and Orchard Row. County officers described the program as voluntary. Asked what would happen to residents who declined, the officer consulted a folder and described the program as voluntary." },
+    { paper: "THE HARLOW COURIER", date: "FEBRUARY 12, 1966",
+      head: "RURAL MAIL ROUTE 9 DISCONTINUED",
+      body: "The postal service has discontinued rural route 9 effective immediately, citing an absence of deliverable addresses. Undeliverable matter will be transferred to a regional facility. The postmaster of record declined to comment, and then declined to be found." }
+  ],
 
   /* ---- FORM 11 verification metadata, per letter ----
      senderTown: municipality on the sender line (null = none given)
