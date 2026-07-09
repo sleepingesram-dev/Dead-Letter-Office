@@ -30,6 +30,10 @@ Then open `http://localhost:8000` in a browser.
 
 **What's in the slice:** 2 full shifts, all 15 MVP letters, the Ruth/Jonah/Eleanor storylines, the black-sealed envelope, the previous clerk's note, the UV lamp, a burned letter that comes back, an archive that changes behind your back, a wall map that gains a house, an office compliance review, and the demo cliffhanger ending.
 
+**Explore the building:** the office is one of seven point-and-click rooms — STEP AWAY FROM THE DESK to look around. The filing room, archive room, break room, and incinerator are open from the start; two more unlock if you pay attention. Destroying a letter means carrying it downstairs and choosing at the furnace. Some rooms hold codes, keys, and files the desk never mentions.
+
+**Scene art:** the rooms load their painted backdrops from `assets/scenes/` — `office.png`, `filing.png`, `archive.png`, `incinerator.png`, `breakroom.png`, `supervisor.png`, `basement.png` (16:9, any resolution). If a file is missing the room renders as a labeled placeholder, so the game is fully playable before the art is in.
+
 ## Quick Facts
 
 | | |

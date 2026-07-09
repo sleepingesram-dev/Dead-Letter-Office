@@ -799,6 +799,177 @@ button { font-family: inherit; cursor: pointer; }
 .modal p { color: #c2ae7e; font-size: 14px; line-height: 1.7; margin-bottom: 12px; font-style: italic; }
 .modal-btns { display: flex; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
 
+/* ---------------- point-and-click rooms ---------------- */
+
+.room-screen { background: #0a0906; }
+
+.scene {
+  flex: 1; position: relative; overflow: hidden;
+  min-height: 0;
+}
+.scene-bg {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover; object-position: center;
+  display: block;
+}
+/* fallback when scene art is not installed yet */
+.noart-label { display: none; }
+.scene.noart {
+  background:
+    radial-gradient(ellipse at 50% 20%, rgba(233,201,121,.08), transparent 55%),
+    linear-gradient(180deg, #242819 0%, #1a1c10 52%, #392b19 52.5%, #241a0e 100%);
+}
+.scene-incinerator.noart {
+  background:
+    radial-gradient(ellipse at 45% 55%, rgba(163,51,39,.3), transparent 55%),
+    linear-gradient(180deg, #221108 0%, #180b06 60%, #241209 100%);
+}
+.scene-basement.noart {
+  background:
+    radial-gradient(ellipse at 50% 12%, rgba(233,201,121,.1), transparent 40%),
+    linear-gradient(180deg, #16150f 0%, #101009 60%, #191710 100%);
+}
+.scene.noart .noart-label {
+  display: block;
+  position: absolute; top: 44%; left: 0; right: 0;
+  text-align: center;
+  color: #7d6b47; font-size: 22px; letter-spacing: 8px;
+}
+.scene.noart .noart-label span {
+  display: block; margin-top: 10px;
+  font-size: 10px; letter-spacing: 2px; color: #55492f; text-transform: lowercase;
+}
+
+/* hotspots — the white circles */
+.hotspot {
+  position: absolute; transform: translate(-50%, -50%);
+  background: transparent; border: none;
+  width: 44px; height: 44px;
+  z-index: 6;
+}
+.hot-ring {
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: 22px; height: 22px; border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, rgba(255,255,255,.95), rgba(220,215,195,.75) 60%);
+  box-shadow: 0 0 0 4px rgba(20,18,12,.45), 0 0 14px rgba(255,250,230,.35);
+  transition: transform .12s;
+}
+.hotspot:hover .hot-ring { transform: translate(-50%, -50%) scale(1.25); }
+.hot-label {
+  position: absolute; left: 50%; top: -26px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  background: rgba(12,10,6,.88);
+  border: 1px solid #453c28;
+  color: #d9cba4;
+  font-size: 10px; letter-spacing: 2px;
+  padding: 3px 9px;
+  opacity: 0; pointer-events: none;
+  transition: opacity .12s;
+}
+.hotspot:hover .hot-label { opacity: 1; }
+
+/* location bar */
+.locbar {
+  position: absolute; top: 10px; left: 50%;
+  transform: translateX(-50%);
+  display: flex; gap: 6px;
+  z-index: 8;
+}
+.loc-btn {
+  background: rgba(14,12,7,.82);
+  border: 1px solid #453c28;
+  color: #94886c;
+  font-size: 9px; letter-spacing: 2px;
+  padding: 6px 10px;
+}
+.loc-btn:hover { color: #d9cba4; }
+.loc-btn.cur { color: #e4d8b0; border-color: #7d6b47; background: rgba(30,25,14,.9); }
+.loc-btn.locked { opacity: .45; }
+
+/* tasks panel (bottom-left, as in the concept shots) */
+.taskbox {
+  position: absolute; left: 26px; bottom: 96px;
+  width: min(300px, 40vw);
+  background: rgba(12,10,6,.88);
+  border: 1px solid #453c28;
+  box-shadow: 0 10px 30px rgba(0,0,0,.6);
+  padding: 14px 18px;
+  z-index: 8;
+}
+.task-head {
+  font-family: Georgia, "Times New Roman", serif;
+  color: #d9cba4; font-size: 15px; letter-spacing: 3px;
+  margin-bottom: 8px;
+}
+.task-line {
+  font-family: Georgia, "Times New Roman", serif;
+  color: #b0a37f; font-size: 12.5px; line-height: 1.7;
+}
+
+/* inventory hotbar (bottom-center) */
+.hotbar {
+  position: absolute; left: 50%; bottom: 18px;
+  transform: translateX(-50%);
+  display: flex; gap: 8px;
+  background: rgba(12,10,6,.85);
+  border: 1px solid #453c28;
+  padding: 8px;
+  z-index: 8;
+}
+.slot {
+  width: 62px; height: 52px;
+  background: rgba(24,20,12,.9);
+  border: 1px solid #352d1b;
+  display: flex; align-items: center; justify-content: center;
+}
+.slot svg { width: 26px; height: 26px; stroke: #b3a170; fill: none; stroke-width: 1.6; }
+.slot:hover:not(.empty) { border-color: #7d6b47; }
+.slot.empty { opacity: .5; cursor: default; }
+
+/* journal / menu corner buttons */
+.cornerbtns {
+  position: absolute; right: 22px; bottom: 18px;
+  display: flex; gap: 10px;
+  z-index: 8;
+}
+.corner-btn {
+  width: 66px; height: 62px;
+  background: rgba(12,10,6,.85);
+  border: 1px solid #453c28;
+  color: #94886c;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  font-size: 8.5px; letter-spacing: 2px;
+}
+.corner-btn svg { width: 22px; height: 22px; stroke: #b3a170; fill: none; stroke-width: 1.6; }
+.corner-btn:hover { color: #d9cba4; border-color: #7d6b47; }
+
+.room-screen .deskliner {
+  position: absolute; left: 26px; bottom: 18px;
+  width: min(300px, 40vw);
+  border: 1px solid #453c28;
+  background: rgba(12,10,6,.82);
+  min-height: 0; max-height: 68px;
+  z-index: 7;
+  padding: 6px 12px;
+}
+
+/* journal panel bits */
+.journal-stats {
+  font-size: 11px; letter-spacing: 1px; color: #3a2f18;
+  border-bottom: 2px solid #8d7f57;
+  padding-bottom: 8px; margin-bottom: 10px;
+}
+.journal-notes { margin-bottom: 10px; }
+.journal-note { font-size: 12px; color: #5a4c30; line-height: 1.6; margin: 4px 0; font-style: italic; }
+.journal-line { font-size: 12px; color: #5a4c30; line-height: 1.8; font-style: italic; border-bottom: 1px dashed #c4b489; padding: 3px 0; }
+.journal-line.sys { font-style: normal; color: #6d3423; font-family: "Courier New", monospace; }
+
+.modal-input { margin-top: 4px; background: #1c160c; color: #d9cba4; border-color: #453c28; }
+.modal-input:focus { outline: 1px solid #7d6b47; }
+
 /* ---------------- small screens ---------------- */
 
 @media (max-width: 900px) {
