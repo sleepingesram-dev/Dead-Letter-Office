@@ -6,7 +6,9 @@
 
   var D = DLO.DATA;
   var A = DLO.Audio;
-  var SAVE_KEY = "dlo_save_v1";
+  var R = DLO.ROOMS;
+  var FLAVOR = DLO.FLAVOR;
+  var SAVE_KEY = "dlo_save_v2";
   var $app;
 
   /* ------------------------------------------------ state */
@@ -25,6 +27,14 @@
       panel: null,
       consulted: { registry: false, deaths: false }, // per-item reference checks
       tut: 0,                 // orientation walkthrough step (99 = skipped)
+      room: "office",         // current scene
+      view: "work",           // "work" (at the sorting desk) | "room" (looking around)
+      pendingBurn: null,      // letter id waiting at the incinerator
+      keysFound: false,
+      safeOpened: false,
+      radioHeard: false,
+      basementOpen: false,
+      journal: [],
       readingArchived: null,  // id of archived letter being reread
       flags: {},
       compliance: 100,
@@ -78,6 +88,8 @@
   function logLine(text, sys) {
     state.log.push({ text: text, sys: !!sys });
     if (state.log.length > 6) state.log.shift();
+    state.journal.push({ text: text, sys: !!sys, shift: state.shiftIdx + 1 });
+    if (state.journal.length > 200) state.journal.shift();
   }
   function getItem(id) {
     if (id === "s2-11") return state.burnedVariant;
@@ -131,6 +143,8 @@
 
   function clockIn() {
     state.screen = "desk";
+    state.room = "office";
+    state.view = "work";
     logLine("The lights hum. The tray is full.");
     render();
   }
@@ -282,6 +296,12 @@
     var item = currentItem();
     if (!item) return;
 
+    if (state.pendingBurn) {
+      logLine("The letter is downstairs, on the incinerator table. Decide there.", true);
+      render();
+      return;
+    }
+
     if (item.unstampable) {
       A.paper();
       logLine("The stamp leaves no mark on it. The bins will not take it.", true);
@@ -289,18 +309,55 @@
       return;
     }
 
-    A.stamp();
+    /* DESTROY is not a stamp. It is a walk downstairs. */
     if (bin === "destroy") {
-      setTimeout(function () { A.burn(); }, 250);
-      document.body.classList.add("burnflash");
-      setTimeout(function () { document.body.classList.remove("burnflash"); }, 1000);
+      A.stamp();
+      state.pendingBurn = id;
+      state.room = "incinerator";
+      state.view = "room";
+      logLine("You carry it down to the incinerator room. The letter waits on the table.");
+      render();
+      return;
     }
 
+    A.stamp();
     applyOutcome(id, item, bin);
 
     /* brief imprint, then advance */
-    var impText = { "return": "RETURN TO SENDER", archive: "ARCHIVED", destroy: "DESTROY" }[bin];
+    var impText = { "return": "RETURN TO SENDER", archive: "ARCHIVED" }[bin];
     showImprint(impText, function () { advance(); });
+  }
+
+  function commitBurn() {
+    if (!state.pendingBurn) {
+      logLine(FLAVOR.warnposter);
+      render();
+      return;
+    }
+    var id = state.pendingBurn;
+    var item = getItem(id);
+    state.pendingBurn = null;
+    A.burn();
+    document.body.classList.add("burnflash");
+    setTimeout(function () { document.body.classList.remove("burnflash"); }, 1000);
+    applyOutcome(id, item, "destroy");
+    logLine("The furnace takes it. For a moment the room is very bright and very quiet.");
+    state.room = "office";
+    state.view = "work";
+    advance();
+  }
+
+  function takeBackLetter() {
+    if (!state.pendingBurn) {
+      logLine("Letters on the sorting table, waiting their turn. One of them is yours to decide.");
+      render();
+      return;
+    }
+    state.pendingBurn = null;
+    logLine("You take it back off the table. The furnace does not comment.");
+    state.room = "office";
+    state.view = "work";
+    render();
   }
 
   function keepItem() {
@@ -475,6 +532,21 @@
   }
 
   function finishFinal() {
+    state.basementOpen = true;
+    save();
+    modal([
+      "You put the letter down. Somewhere below the floor, something unlocks — one bolt, then another, patient as a clock.",
+      "The basement door is open. It was not open before."
+    ], [{ label: "GO DOWN", fn: function () {
+      closeModal();
+      state.room = "basement";
+      state.view = "room";
+      logLine("The stairs are colder than the room above. The room above was already cold.");
+      render();
+    } }]);
+  }
+
+  function endAtLedger() {
     state.screen = "end";
     document.body.classList.remove("lampmode");
     clearSave();
@@ -504,8 +576,15 @@
   /* ------------------------------------------------ modal */
 
   var modalState = null;
-  function modal(lines, buttons) { modalState = { lines: lines, buttons: buttons }; render(); }
+  function modal(lines, buttons, opts) {
+    modalState = { lines: lines, buttons: buttons, input: !!(opts && opts.input), placeholder: (opts && opts.placeholder) || "" };
+    render();
+  }
   function closeModal() { modalState = null; render(); }
+  function modalInputValue() {
+    var el = document.getElementById("modal-input");
+    return el ? el.value.trim() : "";
+  }
 
   function showImprint(text, done) {
     var ws = document.getElementById("workspace");
@@ -564,6 +643,7 @@
   }
 
   function rDesk() {
+    if (state.view === "room") return rRoom();
     return "" +
       "<div class='screen desk-screen" + (state.uvOn ? " uv" : "") + "'>" +
       rHeader() +
@@ -578,6 +658,89 @@
       "</div>" +
       rLog() +
       (state.panel ? rPanel() : "") +
+      "</div>";
+  }
+
+  /* ---------- point-and-click rooms ---------- */
+
+  function roomUnlocked(id) {
+    if (id === "supervisor") return state.keysFound;
+    if (id === "basement") return state.basementOpen;
+    return true;
+  }
+
+  function rRoom() {
+    var room = R[state.room];
+    var hots = room.hotspots.map(function (h) {
+      if (h.id === "keys" && state.keysFound) return "";
+      return "<button class='hotspot' data-hot='" + h.id + "' style='left:" + h.x + "%;top:" + h.y + "%'>" +
+        "<span class='hot-ring'></span><span class='hot-label'>" + esc(h.label) + "</span></button>";
+    }).join("");
+    return "" +
+      "<div class='screen room-screen'>" +
+      "<div class='scene scene-" + state.room + "'>" +
+      "<img class='scene-bg' src='assets/scenes/" + state.room + ".png' alt='' " +
+      "onerror=\"this.style.display='none';this.parentNode.classList.add('noart')\">" +
+      "<div class='noart-label'>" + esc(room.name) + "<span>scene art pending — assets/scenes/" + state.room + ".png</span></div>" +
+      hots +
+      "</div>" +
+      rLocBar() +
+      rTasks() +
+      rHotbar() +
+      rCornerButtons() +
+      rLog() +
+      (state.panel ? rPanel() : "") +
+      "</div>";
+  }
+
+  function rLocBar() {
+    var order = ["office", "filing", "archive", "breakroom", "incinerator", "supervisor", "basement"];
+    return "<div class='locbar'>" + order.map(function (id) {
+      var unlocked = roomUnlocked(id);
+      var cur = state.room === id ? " cur" : "";
+      var lock = unlocked ? "" : " locked";
+      return "<button class='loc-btn" + cur + lock + "' data-room='" + id + "'>" +
+        esc(R[id].name) + (unlocked ? "" : " 🔒") + "</button>";
+    }).join("") + "</div>";
+  }
+
+  function rTasks() {
+    var lines = [];
+    if (state.pendingBurn) {
+      lines.push("Decide what to do with the letter.");
+      lines.push("☐ Burn the letter — the furnace");
+      lines.push("☐ Preserve the letter — take it back");
+    } else if (state.basementOpen && state.screen === "desk") {
+      lines.push("Find the first dead letter.");
+      lines.push("☐ Locate the earliest recorded entry — the ledger");
+    } else {
+      var remaining = state.queue.length - state.itemIdx;
+      lines.push("Process tonight's mail.");
+      lines.push((remaining > 0 ? "☐" : "☑") + " Items remaining: " + Math.max(0, remaining));
+      if (state.view === "room") lines.push("The sorting desk is in the MAIN OFFICE.");
+    }
+    return "<div class='taskbox'><div class='task-head'>TASKS</div>" +
+      lines.map(function (l) { return "<div class='task-line'>" + esc(l) + "</div>"; }).join("") +
+      "</div>";
+  }
+
+  function rHotbar() {
+    var slots = [];
+    slots.push("<button class='slot' data-act='hb-inspect' title='Magnifier'><svg viewBox='0 0 30 30'><circle cx='13' cy='13' r='7'/><path d='M18 18l8 8'/></svg></button>");
+    slots.push("<button class='slot' data-act='hb-item' title='Current item'><svg viewBox='0 0 30 30'><rect x='3' y='7' width='24' height='16'/><path d='M3 7l12 9 12-9'/></svg></button>");
+    slots.push("<button class='slot' data-act='hb-stamp' title='Stamps'><svg viewBox='0 0 30 30'><path d='M8 20h14v6H8z'/><path d='M12 20v-5a3 3 0 016 0v5'/><path d='M15 4v6'/></svg></button>");
+    slots.push(state.keysFound
+      ? "<button class='slot' data-act='hb-keys' title='Brass keys'><svg viewBox='0 0 30 30'><circle cx='10' cy='10' r='5'/><path d='M13 13l12 12M20 20l3-3M24 24l3-3'/></svg></button>"
+      : "<button class='slot empty' disabled></button>");
+    slots.push("<button class='slot empty' disabled></button>");
+    slots.push("<button class='slot empty' disabled></button>");
+    return "<div class='hotbar'>" + slots.join("") + "</div>";
+  }
+
+  function rCornerButtons() {
+    return "<div class='cornerbtns'>" +
+      "<button class='corner-btn' data-panel='journal'><svg viewBox='0 0 30 30'><path d='M15 5 C10 2 4 3 4 6 v18 c0-3 6-4 11-1 5-3 11-2 11 1 V6 c0-3-6-4-11-1 z M15 5 v19'/></svg><span>JOURNAL</span></button>" +
+      "<button class='corner-btn' data-act='menu'><svg viewBox='0 0 30 30'><path d='M5 8h20M5 15h20M5 22h20'/></svg><span>MENU</span></button>" +
       "</div>";
   }
 
@@ -659,6 +822,7 @@
       "<span>SHIFT " + s.number + "</span>" +
       "<span>" + esc(D.office.today) + "</span>" +
       "<span>ITEMS REMAINING: " + Math.max(0, remaining) + "</span>" +
+      "<button class='mini' data-act='leavework'>STEP AWAY FROM THE DESK</button>" +
       "<button class='mini' data-act='sound'>SOUND " + (A.isEnabled() ? "ON" : "OFF") + "</button>" +
       "</div>";
   }
@@ -800,6 +964,7 @@
       case "archive":  inner = pArchive(); break;
       case "news":     inner = pNews(); break;
       case "help":     inner = pHelp(); break;
+      case "journal":  inner = pJournal(); break;
     }
     return "<div class='panel-overlay' data-act='closepanel'>" +
       "<div class='panel' data-stop='1'>" +
@@ -812,7 +977,8 @@
   function panelTitle() {
     return { registry: "MUNICIPAL ADDRESS REGISTRY", deaths: "COUNTY REGISTER OF DEATHS",
              policy: "POLICY MANUAL", map: "WALL MAP — MARROW CREEK", archive: "ARCHIVE — PROCESSED ITEMS",
-             news: "NEWSPAPER ARCHIVE — MICROFILM", help: "DESK REFERENCE — SORTING PROCEDURE" }[state.panel] || "";
+             news: "NEWSPAPER ARCHIVE — MICROFILM", help: "DESK REFERENCE — SORTING PROCEDURE",
+             journal: "CLERK'S JOURNAL" }[state.panel] || "";
   }
 
   function activeMeta() {
@@ -954,6 +1120,26 @@
     return "<div class='panel-intro'>Clippings furnished on microfilm, county library, as available. Some editions could not be located and were never printed, in that order.</div>" + rows;
   }
 
+  function pJournal() {
+    var stats = "<div class='journal-stats'>" +
+      "SHIFT " + shiftDef().number + " · COMPLIANCE " + state.compliance +
+      " · MEMORY " + memoryLevel() +
+      " · ARCHIVED " + state.counts.archive + " · DESTROYED " + state.counts.destroy +
+      " · RETURNED " + state.counts["return"] + (state.counts.keep ? " · KEPT " + state.counts.keep : "") +
+      "</div>";
+    var notes = "";
+    if (state.keysFound) notes += "<div class='journal-note'>· A ring of brass keys, from the hook in the filing room. One of them fit the supervisor's door.</div>";
+    if (state.radioHeard) notes += "<div class='journal-note'>· The radio read out numbers: BELL 2 · RUTH 6 · JONAH 1 · ANNA 7. Then the weather.</div>";
+    if (state.flags.FilingCodeSeen) notes += "<div class='journal-note'>· A pinned note in the filing room: BELL = 2, RUTH = 6, JONAH = 1, ANNA = 7.</div>";
+    if (state.safeOpened) notes += "<div class='journal-note'>· The safe held one folder: an employee file, mostly redacted. The name field was redacted too. It was the right length.</div>";
+    var lines = state.journal.slice().reverse().map(function (l) {
+      return "<div class='journal-line" + (l.sys ? " sys" : "") + "'>" + esc(l.text) + "</div>";
+    }).join("");
+    return stats + (notes ? "<div class='journal-notes'>" + notes + "</div>" : "") +
+      "<div class='panel-intro'>Everything you noticed tonight, most recent first. Noticing is not against policy. Writing it down is not against policy either. Yet.</div>" +
+      lines;
+  }
+
   function pArchive() {
     var archived = state.processed.filter(function (p) { return p.bin === "archive"; });
     if (!archived.length) return "<div class='panel-intro'>Nothing has been archived yet.</div>";
@@ -1047,6 +1233,7 @@
   function rModal() {
     return "<div class='modal-overlay'><div class='modal'>" +
       modalState.lines.map(function (l) { return "<p>" + esc(l) + "</p>"; }).join("") +
+      (modalState.input ? "<input id='modal-input' class='rec-search modal-input' maxlength='8' placeholder='" + esc(modalState.placeholder) + "' spellcheck='false'>" : "") +
       "<div class='modal-btns'>" +
       modalState.buttons.map(function (b, i) {
         return "<button class='btn' data-modal='" + i + "'>" + esc(b.label) + "</button>";
@@ -1105,6 +1292,18 @@
     var stop = $app.querySelector("[data-stop]");
     if (stop) stop.addEventListener("click", function (ev) { ev.stopPropagation(); });
 
+    /* room hotspots and the location bar */
+    $app.querySelectorAll("[data-hot]").forEach(function (el) {
+      el.addEventListener("click", function () { hotspotAct(el.getAttribute("data-hot")); });
+    });
+    $app.querySelectorAll("[data-room]").forEach(function (el) {
+      el.addEventListener("click", function () {
+        var id = el.getAttribute("data-room");
+        if (id === state.room) return;
+        gotoRoom(id);
+      });
+    });
+
     /* record search: filter rows in place, no re-render (keeps input focus) */
     $app.querySelectorAll("input[data-filter]").forEach(function (input) {
       var sel = input.getAttribute("data-filter");
@@ -1122,6 +1321,223 @@
       var t = $app.querySelector(target);
       if (t) t.classList.add("pulse");
     }
+  }
+
+  /* ---------- hotspot actions ---------- */
+
+  function gotoRoom(id) {
+    if (!roomUnlocked(id)) {
+      if (id === "supervisor") logLine("The supervisor's door is locked. The lock is polished from use. Nobody uses this door.", false);
+      else logLine("The basement door is bolted from the other side. There is no other side listed on the floor plan.", false);
+      render();
+      return;
+    }
+    state.room = id;
+    state.view = "room";
+    state.panel = null;
+    A.paper();
+    if (id === "supervisor" && !state.flags.SupervisorVisited) {
+      state.flags.SupervisorVisited = true;
+      logLine("The key turns like it was waiting. Inside, the lamp is already on.", false);
+    }
+    render();
+  }
+
+  function hotspotAct(hotId) {
+    var room = R[state.room];
+    var spec = null;
+    for (var i = 0; i < room.hotspots.length; i++) if (room.hotspots[i].id === hotId) spec = room.hotspots[i];
+    if (!spec) return;
+    var act = spec.act;
+
+    if (act.indexOf("goto:") === 0) { gotoRoom(act.slice(5)); return; }
+    if (act.indexOf("panel:") === 0) {
+      var p = act.slice(6);
+      if (p === "deaths" && !hasUnlock("deaths")) { logLine("The drawer does not move. A slip reads: SECOND SHIFT.", false); render(); return; }
+      if (p === "news" && !hasUnlock("news")) { logLine("An old sports section. The scores are all ties.", false); render(); return; }
+      state.panel = p;
+      state.readingArchived = null;
+      render();
+      return;
+    }
+    if (act.indexOf("flavor:") === 0) {
+      logLine(FLAVOR[act.slice(7)] || "Nothing about it wants your attention.", false);
+      render();
+      return;
+    }
+
+    switch (act) {
+      case "work":
+        state.view = "work";
+        A.paper();
+        render();
+        break;
+
+      case "basementdoor":
+        gotoRoom("basement");
+        break;
+
+      case "burn":
+        commitBurn();
+        break;
+
+      case "takeback":
+        takeBackLetter();
+        break;
+
+      case "codenote":
+        state.flags.FilingCodeSeen = true;
+        modal([
+          "A note, pinned twice, as if once was not enough:",
+          "BELL = 2.  RUTH = 6.  JONAH = 1.  ANNA = 7.",
+          "The handwriting is careful. The pin holes in the paper are many."
+        ], [{ label: "LEAVE IT PINNED", fn: closeModal }]);
+        break;
+
+      case "keys":
+        if (state.shiftIdx < 1) {
+          logLine("An empty hook, polished bright. Whatever hangs here is out with someone.", false);
+          render();
+        } else {
+          state.keysFound = true;
+          state.memory += 1;
+          logLine("A ring of brass keys. The tag reads: SUPERVISOR. DO NOT DUPLICATE. Somebody duplicated it.", true);
+          save();
+          render();
+        }
+        break;
+
+      case "bellbox":
+        if (state.shiftIdx < 1) {
+          logLine("A box marked BELL FAMILY. The lid is taped down. The tape is new.", false);
+          render();
+        } else {
+          if (!state.flags.BellFolderRead) { state.flags.BellFolderRead = true; state.memory += 1; save(); }
+          modal([
+            "BELL FAMILY — 12 BRIAR LANE.",
+            "Ruth Bell, homemaker. One son, Jonah, b. 1949. Father relocated to Cedar Falls, 1959, alone.",
+            "The folder holds forty-one letters, all from Ruth, all addressed to Jonah, all returned. The earliest is dated three weeks after the flood.",
+            "Someone has been keeping them in order. The order is not chronological. It is by how hard the pen was pressed."
+          ], [{ label: "CLOSE THE BOX", fn: closeModal }]);
+        }
+        break;
+
+      case "photo":
+        if (!state.flags.PhotoSeen) { state.flags.PhotoSeen = true; state.memory += 1; save(); }
+        modal([
+          "A staff photograph, pinned at eye height. REGIONAL FACILITY 9, the caption says, and a year that has been inked out.",
+          "Seven clerks. Six faces.",
+          "The seventh is turned away from the camera, toward the sorting desk. Your sorting desk."
+        ], [{ label: "STOP LOOKING", fn: closeModal }]);
+        break;
+
+      case "radio":
+        if (state.shiftIdx < 1) {
+          logLine("The radio gives you the weather. The weather is: rain later.", false);
+          render();
+        } else {
+          if (!state.radioHeard) { state.radioHeard = true; state.memory += 1; save(); }
+          modal([
+            "You turn the dial through static, and the static organizes itself into a woman's voice — patient, level, like a teacher taking attendance:",
+            "“BELL. TWO. RUTH. SIX. JONAH. ONE. ANNA. SEVEN.”",
+            "Then the weather. The weather is: rain later."
+          ], [{ label: "TURN IT OFF", fn: closeModal }]);
+        }
+        break;
+
+      case "portrait":
+        logLine("The portrait's eyes are level with yours, whoever stands here. The plaque reads: DIRECTOR H. PIKE.", false);
+        render();
+        break;
+
+      case "phone":
+        if (state.finalInserted) {
+          logLine("The phone is silent. Whatever wanted to talk to you already wrote.", false);
+        } else {
+          logLine("You lift the receiver. The line is not dead. It is holding its breath. You put it back.", false);
+        }
+        render();
+        break;
+
+      case "clerkfolder":
+        if (!state.flags.ClerkFolderSeen) { state.flags.ClerkFolderSeen = true; state.memory += 1; save(); }
+        modal([
+          "A folder marked PREVIOUS CLERK, left square in the lamplight, as if for you.",
+          "Employment record: [REDACTED]. Duration of service: [REDACTED]. Reason for separation: the word is blacked out, but the pen pressed hard enough to read it from the back. It says REMEMBERED.",
+          "The last page is a transfer slip, stamped RETURN TO SENDER."
+        ], [{ label: "CLOSE THE FOLDER", fn: closeModal }]);
+        break;
+
+      case "safe":
+        if (state.safeOpened) {
+          logLine("The safe stands open and empty now. It seems relieved.", false);
+          render();
+          break;
+        }
+        modal([
+          "A combination safe. Four digits.",
+          "The dial is worn at four numbers in particular, the way a name wears a voice."
+        ], [
+          { label: "TRY A COMBINATION", fn: function () {
+              var code = modalInputValue();
+              if (code === "2617") {
+                state.safeOpened = true;
+                state.memory += 2;
+                state.flags.EmployeeFileFound = true;
+                save();
+                modal([
+                  "Two, six, one, seven. The handle gives.",
+                  "Inside: one folder. Your employee file.",
+                  "Name: [REDACTED]. The redaction is exactly as long as your name.",
+                  "Date of hire: [REDACTED]. Prior address: 12 BRIAR LANE, MARROW CREEK — struck through, initialed, struck through again."
+                ], [{ label: "PUT IT BACK", fn: closeModal }]);
+              } else {
+                logLine("The dial spins to a stop. Wrong. The safe does not judge you. Something else does.", true);
+                closeModal();
+              }
+            } },
+          { label: "STEP BACK", fn: closeModal }
+        ], { input: true, placeholder: "0000" });
+        break;
+
+      case "drawing":
+        if (!state.flags.DrawingSeen) { state.flags.DrawingSeen = true; state.memory += 1; save(); }
+        modal([
+          "A child's drawing, pinned to the shelf: a house, a sun, three figures holding hands.",
+          "One of the figures has been erased. Carefully. Whoever erased it pressed lighter than whoever drew it.",
+          "In the corner, in teacher's handwriting: VERY GOOD, JONAH."
+        ], [{ label: "PIN IT BACK", fn: closeModal }]);
+        break;
+
+      case "bledger":
+        if (state.basementOpen && state.finalRead) {
+          modal([
+            "The ledger's first page. Entry one, in a clerk's copperplate gone shaky at the end:",
+            "“ITEM 1. SENDER: E. VALE. RECIPIENT: WHOEVER IS STILL THERE. DISPOSITION: HELD. HELD. HELD.”",
+            "The date is before the office existed. The ink is not dry."
+          ], [{ label: "CLOSE THE LEDGER", fn: function () { closeModal(); endAtLedger(); } }]);
+        } else {
+          logLine("The ledger's early pages are glued shut with damp. Or something like damp.", false);
+          render();
+        }
+        break;
+    }
+  }
+
+  function openMenu() {
+    modal([
+      "REGIONAL DEAD LETTER FACILITY 9",
+      "Shift " + shiftDef().number + " · " + D.office.today
+    ], [
+      { label: "BACK TO WORK", fn: closeModal },
+      { label: "SOUND: " + (A.isEnabled() ? "ON" : "OFF"), fn: function () {
+          A.setEnabled(!A.isEnabled());
+          if (A.isEnabled()) A.startHum();
+          closeModal();
+        } },
+      { label: "HOW TO SORT", fn: function () { modalState = null; state.panel = "help"; render(); } },
+      { label: "RESTART FROM SHIFT 1", fn: function () { modalState = null; document.body.className = ""; newGame(); } }
+    ]);
   }
 
   function handleAct(act) {
@@ -1146,6 +1562,23 @@
       case "nextshift":  startShift(1); break;
       case "finishfinal": finishFinal(); break;
       case "tutskip":    state.tut = 99; render(); break;
+      case "leavework":  state.view = "room"; state.room = "office"; A.paper(); render(); break;
+      case "menu":       openMenu(); break;
+      case "hb-inspect":
+        if (state.view === "work" && state.phase === "letter" && hasUnlock("uv")) toggleUV();
+        else { logLine("The magnifier finds nothing here that wants magnifying.", false); render(); }
+        break;
+      case "hb-item":
+        if (state.view === "room" && !state.pendingBurn) { state.view = "work"; state.room = "office"; render(); }
+        else { logLine("The current item is on the desk, where items belong.", false); render(); }
+        break;
+      case "hb-stamp":
+        if (state.view === "room" && !state.pendingBurn) { state.view = "work"; state.room = "office"; render(); }
+        else { logLine("Three stamps, inked and waiting.", false); render(); }
+        break;
+      case "hb-keys":
+        logLine("Brass keys, cold in the pocket. Colder than the pocket.", false); render();
+        break;
       case "sealed-deliver":
         logLine("The DELIVER tray is sealed by directorate order. There is nowhere to deliver to. Yet.", true);
         render(); break;
