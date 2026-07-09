@@ -854,9 +854,13 @@ button { font-family: inherit; cursor: pointer; }
   width: 22px; height: 22px; border-radius: 50%;
   background: radial-gradient(circle at 40% 35%, rgba(255,255,255,.95), rgba(220,215,195,.75) 60%);
   box-shadow: 0 0 0 4px rgba(20,18,12,.45), 0 0 14px rgba(255,250,230,.35);
-  transition: transform .12s;
+  transition: transform .12s, opacity .12s;
 }
-.hotspot:hover .hot-ring { transform: translate(-50%, -50%) scale(1.25); }
+/* with real scene art the circles are painted into the image;
+   our ring only appears on hover (and always on the fallback) */
+.scene:not(.noart) .hot-ring { opacity: 0; }
+.scene.noart .hot-ring { opacity: 1; }
+.hotspot:hover .hot-ring { opacity: .85; transform: translate(-50%, -50%) scale(1.25); }
 .hot-label {
   position: absolute; left: 50%; top: -26px;
   transform: translateX(-50%);
@@ -893,7 +897,7 @@ button { font-family: inherit; cursor: pointer; }
 .taskbox {
   position: absolute; left: 26px; bottom: 96px;
   width: min(300px, 40vw);
-  background: rgba(12,10,6,.88);
+  background: rgba(12,10,6,.95);
   border: 1px solid #453c28;
   box-shadow: 0 10px 30px rgba(0,0,0,.6);
   padding: 14px 18px;
@@ -914,7 +918,7 @@ button { font-family: inherit; cursor: pointer; }
   position: absolute; left: 50%; bottom: 18px;
   transform: translateX(-50%);
   display: flex; gap: 8px;
-  background: rgba(12,10,6,.85);
+  background: rgba(12,10,6,.95);
   border: 1px solid #453c28;
   padding: 8px;
   z-index: 8;
@@ -937,7 +941,7 @@ button { font-family: inherit; cursor: pointer; }
 }
 .corner-btn {
   width: 66px; height: 62px;
-  background: rgba(12,10,6,.85);
+  background: rgba(12,10,6,.95);
   border: 1px solid #453c28;
   color: #94886c;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
@@ -950,7 +954,7 @@ button { font-family: inherit; cursor: pointer; }
   position: absolute; left: 26px; bottom: 18px;
   width: min(300px, 40vw);
   border: 1px solid #453c28;
-  background: rgba(12,10,6,.82);
+  background: rgba(12,10,6,.95);
   min-height: 0; max-height: 68px;
   z-index: 7;
   padding: 6px 12px;

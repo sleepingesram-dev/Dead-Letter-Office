@@ -676,10 +676,13 @@
       return "<button class='hotspot' data-hot='" + h.id + "' style='left:" + h.x + "%;top:" + h.y + "%'>" +
         "<span class='hot-ring'></span><span class='hot-label'>" + esc(h.label) + "</span></button>";
     }).join("");
+    /* after the lights go out, the office is lit wrong */
+    var art = state.room;
+    if (state.room === "office" && state.finalInserted) art = "office-wrong";
     return "" +
       "<div class='screen room-screen'>" +
       "<div class='scene scene-" + state.room + "'>" +
-      "<img class='scene-bg' src='assets/scenes/" + state.room + ".png' alt='' " +
+      "<img class='scene-bg' src='assets/scenes/" + art + ".png' alt='' " +
       "onerror=\"this.style.display='none';this.parentNode.classList.add('noart')\">" +
       "<div class='noart-label'>" + esc(room.name) + "<span>scene art pending — assets/scenes/" + state.room + ".png</span></div>" +
       hots +
@@ -1609,6 +1612,10 @@
     act: handleAct,
     stamp: function (bin) { if (bin === "keep") keepItem(); else stampItem(bin); },
     modalChoose: function (i) { if (modalState) modalState.buttons[i].fn(); },
-    hasModal: function () { return !!modalState; }
+    hasModal: function () { return !!modalState; },
+    debugGoto: function (id) {
+      state.keysFound = true; state.basementOpen = true;
+      state.room = id; state.view = "room"; render();
+    }
   };
 })();
