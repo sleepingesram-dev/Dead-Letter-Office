@@ -79,7 +79,9 @@ DLO.DATA = {
       brief: [
         "REGIONAL DEAD LETTER FACILITY 9 — NIGHT SHIFT",
         "You are the clerk on duty. The tray holds tonight's undeliverable items.",
-        "Inspect each item. Consult the registry and the policy manual. Apply the correct stamp: RETURN TO SENDER, ARCHIVE, or DESTROY.",
+        "For each item: take it, inspect both sides, open it, and verify what it claims against the records at your desk. FORM 11, pinned beneath each item, tracks what you have verified and states what policy directs.",
+        "You have three stamps. RETURN TO SENDER: the sender's town is real and active, so the item goes back. ARCHIVE: the item is kept here, in this office, on the record. DESTROY: the incinerator.",
+        "Follow policy, or do not. Both are recorded.",
         "Work alone. Work quietly. The building is larger than it needs to be; this is not your concern."
       ],
       items: ["s1-01", "s1-02", "s1-03", "s1-04", "s1-05", "s1-06"],
@@ -91,7 +93,8 @@ DLO.DATA = {
       brief: [
         "NIGHT SHIFT TWO.",
         "Two additions to your station: the county register of deaths, and an ultraviolet inspection lamp.",
-        "New standing policy 14-A is in effect. Mail addressed to deceased recipients is to be DESTROYED.",
+        "New standing policy 14-A is in effect. Mail addressed to deceased recipients is to be DESTROYED. FORM 11 now carries a mortality line: check every name on every envelope against the register.",
+        "The lamp is for the detection of unauthorized markings. Some paper is not empty where it looks empty.",
         "The incinerator room logs each use. The log is reviewed."
       ],
       items: ["s2-07", "s2-08", "s2-09", "s2-10", "s2-12", "s2-13", "s2-14"],
@@ -514,6 +517,30 @@ DLO.DATA = {
       correct: null,
       tags: ["bell", "burned"]
     }
+  },
+
+  /* ---- FORM 11 verification metadata, per letter ----
+     senderTown: municipality on the sender line (null = none given)
+     deadNames: register-of-deaths rows relevant to the names on this envelope
+     recipientDead: recipient appears in the register (Policy 14-A, Shift 2+)
+     internal / sealed / discretion / noPolicy: directive overrides
+     dateAnomaly: postmark exceeds the processing date */
+  lookup: {
+    "s1-01": { senderTown: "HARLOW",       deadNames: ["ALDOUS, DENNIS"], recipientDead: true },
+    "s1-02": { senderTown: "CEDAR FALLS",  deadNames: ["PRICE, ADA"] },
+    "s1-03": { internal: true },
+    "s1-04": { senderTown: "MARROW CREEK", deadNames: ["VALE, ELEANOR"] },
+    "s1-05": { senderTown: "MARROW CREEK", deadNames: ["BELL, JONAH A.", "BELL, RUTH"], recipientDead: true },
+    "s1-06": { senderTown: null,           deadNames: ["MERRITT, THOMAS"], recipientDead: true, dateAnomaly: true },
+    "s2-07": { internal: true },
+    "s2-08": { senderTown: null,           deadNames: ["BELL, RUTH", "BELL, JONAH A."], recipientDead: true },
+    "s2-09": { senderTown: null,           deadNames: [] },
+    "s2-10": { senderTown: "MARROW CREEK", deadNames: ["CROWE, SILAS", "VALE, ELEANOR"], recipientDead: true },
+    "s2-11": { discretion: true,           deadNames: ["BELL, RUTH", "BELL, JONAH A."] },
+    "s2-12": { sealed: true },
+    "s2-13": { internal: true },
+    "s2-14": { senderTown: "MARROW CREEK", deadNames: ["BELL, JONAH A.", "BELL, RUTH"], recipientDead: true },
+    "s2-15": { noPolicy: true, dateAnomaly: true }
   },
 
   /* ---- End-of-shift review lines ---- */

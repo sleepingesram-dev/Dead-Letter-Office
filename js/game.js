@@ -23,6 +23,8 @@
       flipped: false,
       uvOn: false,
       panel: null,
+      consulted: { registry: false, deaths: false }, // per-item reference checks
+      tut: 0,                 // orientation walkthrough step (99 = skipped)
       readingArchived: null,  // id of archived letter being reread
       flags: {},
       compliance: 100,
@@ -108,6 +110,8 @@
     state.phase = "tray";
     state.flipped = false;
     state.uvOn = false;
+    if (typeof state.tut !== "number") state.tut = 99;
+    if (!state.consulted) state.consulted = { registry: false, deaths: false };
     render();
   }
 
@@ -137,12 +141,16 @@
     state.phase = "envelope";
     state.flipped = false;
     state.uvOn = false;
+    state.consulted = { registry: false, deaths: false };
+    if (state.tut === 0) state.tut = 1;
+    else if (state.tut === 6) state.tut = 7;
     render();
   }
 
   function flipItem() {
     A.paper();
     state.flipped = !state.flipped;
+    if (state.tut === 1) state.tut = 2;
     render();
   }
 
@@ -172,10 +180,88 @@
     }
     A.tear();
     state.phase = "letter";
+    if (state.tut >= 1 && state.tut < 3) state.tut = 3;
     if (item.kind === "final") {
       state.finalRead = true;
     }
     render();
+  }
+
+  /* ------------------------------------------------ FORM 11 (disposition worksheet) */
+
+  function metaFor(id) { return D.lookup[id] || {}; }
+
+  /* What policy objectively directs for this item, with full knowledge. */
+  function directiveFor(id) {
+    var m = metaFor(id);
+    if (m.noPolicy)   return { bin: null, ref: null, text: "NO APPLICABLE POLICY." };
+    if (m.discretion) return { bin: null, ref: null, text: "REPROCESS — CLERK'S DISCRETION." };
+    if (m.sealed)     return { bin: "archive", ref: "P-40", text: "BLACK SEAL — ARCHIVE UNOPENED." };
+    if (m.internal)   return { bin: "archive", ref: "P-09", text: "INTERNAL DOCUMENT — ARCHIVE." };
+    if (state.shiftIdx >= 1 && m.recipientDead)
+      return { bin: "destroy", ref: "14-A", text: "RECIPIENT DECEASED — DESTROY." };
+    if (!m.senderTown) return { bin: "archive", ref: "P-09", text: "NO VERIFIABLE SENDER — ARCHIVE." };
+    var rec = null;
+    for (var i = 0; i < D.registry.length; i++) if (D.registry[i].town === m.senderTown) rec = D.registry[i];
+    if (rec && rec.status === "ACTIVE")
+      return { bin: "return", ref: "P-06", text: "SENDER VERIFIED — RETURN TO SENDER." };
+    return { bin: "archive", ref: "22-C", text: "SENDER MUNICIPALITY NOT RECOGNIZED — ARCHIVE." };
+  }
+
+  /* The worksheet as the clerk can currently fill it in: lines appear only
+     after the relevant reference has been consulted for this item. */
+  function rWorksheet(id) {
+    var m = metaFor(id);
+    var rows = [];
+    var pendingWhat = [];
+
+    /* sender line */
+    if (!m.internal && !m.sealed && !m.noPolicy && !m.discretion) {
+      if (!m.senderTown) {
+        rows.push("<div class='ws-row'>SENDER: NONE GIVEN — <b>UNVERIFIABLE</b></div>");
+      } else if (state.consulted.registry) {
+        var rec = null;
+        for (var i = 0; i < D.registry.length; i++) if (D.registry[i].town === m.senderTown) rec = D.registry[i];
+        var st = rec ? rec.status : "NO RECORD";
+        rows.push("<div class='ws-row'>SENDER TOWN: " + esc(m.senderTown) + " — <b>" + esc(st) + "</b></div>");
+      } else {
+        rows.push("<div class='ws-row dim'>SENDER TOWN: " + esc(m.senderTown) + " — unverified</div>");
+        pendingWhat.push("ADDRESS REGISTRY");
+      }
+      /* mortality line, shift 2+ */
+      if (state.shiftIdx >= 1) {
+        if (state.consulted.deaths) {
+          rows.push(m.recipientDead
+            ? "<div class='ws-row bad'>RECIPIENT: IN REGISTER OF DEATHS — <b>DECEASED</b></div>"
+            : "<div class='ws-row'>RECIPIENT: NOT IN REGISTER — <b>NO RECORD OF DEATH</b></div>");
+        } else {
+          rows.push("<div class='ws-row dim'>RECIPIENT: mortality unchecked</div>");
+          pendingWhat.push("REGISTER OF DEATHS");
+        }
+      }
+    }
+    if (m.dateAnomaly) {
+      rows.push("<div class='ws-row bad'>POSTMARK EXCEEDS PROCESSING DATE — NO POLICY COVERS THIS.</div>");
+    }
+    if (m.sealed && state.flags.BlackEnvelopeOpened) {
+      rows.push("<div class='ws-row bad'>SEAL CONDITION: BROKEN. NOTED.</div>");
+    }
+
+    /* directive line */
+    var dline;
+    if (pendingWhat.length) {
+      dline = "<div class='ws-directive dim'>POLICY DIRECTS: PENDING — consult the " + pendingWhat.join(" and the ") + ".</div>";
+    } else {
+      var d = directiveFor(id);
+      var stampWord = { "return": "RETURN TO SENDER", archive: "ARCHIVE", destroy: "DESTROY" }[d.bin];
+      dline = d.bin
+        ? "<div class='ws-directive'>POLICY DIRECTS: <b>" + stampWord + "</b>" + (d.ref ? " (" + d.ref + ")" : "") +
+          " — " + esc(d.text) + "<span class='ws-yours'>The decision is yours.</span></div>"
+        : "<div class='ws-directive'>POLICY DIRECTS: <b>—</b> " + esc(d.text) + "</div>";
+    }
+
+    return "<div class='worksheet'><div class='ws-head'>FORM 11 — DISPOSITION WORKSHEET</div>" +
+      rows.join("") + dline + "</div>";
   }
 
   function toggleUV() {
@@ -227,6 +313,7 @@
     state.processed.push({ id: id, bin: "keep" });
     state.deviations.push(D.reviewDeviation[id]);
     logLine("You fold it twice and put it in your coat pocket.");
+    logLine("ITEM UNACCOUNTED FOR. DEVIATION RECORDED.", true);
     advance();
   }
 
@@ -251,11 +338,24 @@
       state.compliance = clamp(state.compliance - 10);
     }
 
+    /* immediate feedback: did that follow policy or not */
+    var dir = directiveFor(id);
+    if (item.sealed && state.flags.BlackEnvelopeOpened) {
+      logLine("SEAL BROKEN — DEVIATION FROM P-40 RECORDED.", true);
+    } else if (!dir.bin) {
+      logLine("PROCESSED. NO POLICY APPLIED.", true);
+    } else if (bin === dir.bin) {
+      logLine("PROCESSED PER POLICY " + dir.ref + ".", true);
+    } else {
+      logLine("DEVIATION FROM POLICY " + dir.ref + " RECORDED.", true);
+    }
+
     if (item.anomaly) logLine(item.anomaly, true);
     if (id === "s2-11" && bin === "destroy") {
       logLine("ITEM DID NOT BURN. ITEM IS RECORDED AS DESTROYED.", true);
       state.flags.BurnedTwice = true;
     }
+    if (state.tut > 0 && state.tut < 6) state.tut = 6;
   }
 
   function advance() {
@@ -495,6 +595,7 @@
       "<button class='side-btn' data-panel='policy'>POLICY MANUAL</button>" +
       "<button class='side-btn' data-panel='map'>WALL MAP</button>" +
       "<button class='side-btn' data-panel='archive'>ARCHIVE</button>" +
+      "<button class='side-btn help' data-panel='help'>DESK REFERENCE — HOW TO SORT</button>" +
       "<div class='side-label'>TOOLS</div>" +
       (uv ? "<button class='side-btn uv-btn" + (state.uvOn ? " on" : "") + "' data-act='uv'>UV LAMP " + (state.uvOn ? "· ON" : "· OFF") + "</button>"
           : "<div class='side-note'>Letter opener. Three stamps. A lamp.</div>") +
@@ -502,17 +603,41 @@
   }
 
   function rWorkspace() {
-    if (state.itemIdx >= state.queue.length) return "<div class='tray-empty'>The tray is empty.</div>";
+    var slip = rTutorial();
+    if (state.itemIdx >= state.queue.length) return slip + "<div class='tray-empty'>The tray is empty.</div>";
     var item = currentItem();
     if (state.phase === "tray") {
-      return "<div class='tray'>" +
+      return slip + "<div class='tray'>" +
         "<div class='tray-label'>INCOMING TRAY</div>" +
         "<div class='tray-item'>" + esc(item.label) + "</div>" +
         "<button class='btn' data-act='take'>TAKE ITEM</button>" +
         "</div>";
     }
-    if (state.phase === "envelope") return rEnvelope(item);
-    return rLetter(item);
+    var ws = rWorksheet(currentId());
+    if (state.phase === "envelope") return slip + rEnvelope(item) + ws;
+    return slip + rLetter(item) + ws;
+  }
+
+  /* ---------- orientation walkthrough (shift 1, first item) ---------- */
+
+  var TUT_STEPS = {
+    0: { text: "ORIENTATION — STEP 1 OF 5: Take the item from the tray.", target: "[data-act=take]" },
+    1: { text: "STEP 2: Inspect it. Flip it over, front and back.", target: "[data-act=flip]" },
+    2: { text: "STEP 3: Open it with the letter opener and read it.", target: "[data-act=open]" },
+    3: { text: "STEP 4: Verify the sender. Open the ADDRESS REGISTRY and find the sender's town.", target: "[data-panel=registry]" },
+    5: { text: "STEP 5: FORM 11, beneath the item, now states what policy directs. Apply that stamp — or another. Both are recorded.", target: "[data-stamp=return]" },
+    6: { text: "Orientation complete. Every item works the same way: inspect, verify, decide. What you do with what you learn is your own affair.", target: null }
+  };
+
+  function rTutorial() {
+    if (state.shiftIdx !== 0 || state.tut >= 7 || !TUT_STEPS[state.tut]) return "";
+    return "<div class='tut-slip'><span>" + esc(TUT_STEPS[state.tut].text) + "</span>" +
+      "<button class='mini' data-act='tutskip'>SKIP TRAINING</button></div>";
+  }
+
+  function tutTarget() {
+    if (state.shiftIdx !== 0 || !TUT_STEPS[state.tut]) return null;
+    return TUT_STEPS[state.tut].target;
   }
 
   function rEnvelope(item) {
@@ -592,6 +717,7 @@
       case "policy":   inner = pPolicy(); break;
       case "map":      inner = pMap(); break;
       case "archive":  inner = pArchive(); break;
+      case "help":     inner = pHelp(); break;
     }
     return "<div class='panel-overlay' data-act='closepanel'>" +
       "<div class='panel' data-stop='1'>" +
@@ -603,35 +729,61 @@
 
   function panelTitle() {
     return { registry: "MUNICIPAL ADDRESS REGISTRY", deaths: "COUNTY REGISTER OF DEATHS",
-             policy: "POLICY MANUAL", map: "WALL MAP — MARROW CREEK", archive: "ARCHIVE — PROCESSED ITEMS" }[state.panel] || "";
+             policy: "POLICY MANUAL", map: "WALL MAP — MARROW CREEK", archive: "ARCHIVE — PROCESSED ITEMS",
+             help: "DESK REFERENCE — SORTING PROCEDURE" }[state.panel] || "";
+  }
+
+  function activeMeta() {
+    if (state.phase === "tray" || state.itemIdx >= state.queue.length) return null;
+    return metaFor(currentId());
   }
 
   function pRegistry() {
+    var m = activeMeta();
     var rows = D.registry.map(function (r) {
       var cls = r.status === "ACTIVE" ? "ok" : "bad";
+      var hl = (m && m.senderTown === r.town) ? " hl" : "";
+      var mark = hl ? "<span class='hl-mark'>◂ THIS ITEM</span>" : "";
       var extra = "";
       if (r.town === "MARROW CREEK") {
         extra = state.correctionFiled
           ? "<div class='reg-denied'>CORRECTION REQUEST: DENIED. DO NOT RESUBMIT.</div>"
           : "<button class='mini' data-act='correct'>FILE CORRECTION REQUEST</button>";
       }
-      return "<div class='reg-row'><span class='reg-town'>" + esc(r.town) + "</span>" +
+      return "<div class='reg-row" + hl + "'><span class='reg-town'>" + esc(r.town) + mark + "</span>" +
         "<span class='reg-status " + cls + "'>" + esc(r.status) + "</span>" +
         "<span class='reg-note'>" + esc(r.note) + "</span>" + extra + "</div>";
     }).join("");
-    return "<div class='panel-intro'>All municipalities recognized by the county appear below. The registry is complete. The registry has always been complete.</div>" + rows;
+    return "<div class='panel-intro'>All municipalities recognized by the county appear below. If the sender's town is ACTIVE, the item can go back (P-06). The registry is complete. The registry has always been complete.</div>" + rows;
   }
 
   function pDeaths() {
+    var m = activeMeta();
     var rows = D.deathRecords.map(function (r) {
-      return "<div class='death-row'>" +
-        "<div class='death-name'>" + esc(r.name) + "</div>" +
+      var hl = (m && m.deadNames && m.deadNames.indexOf(r.name) >= 0) ? " hl" : "";
+      var mark = hl ? "<span class='hl-mark'>◂ THIS ITEM</span>" : "";
+      return "<div class='death-row" + hl + "'>" +
+        "<div class='death-name'>" + esc(r.name) + mark + "</div>" +
         "<div class='death-dates'>b. " + esc(r.born) + " — d. " + esc(r.died) + "</div>" +
         "<div class='death-cause'>" + esc(r.cause) + "</div>" +
         (r.note ? "<div class='death-note'>" + esc(r.note) + "</div>" : "") +
         "</div>";
     }).join("");
-    return "<div class='panel-intro'>County register of deaths, as furnished to this facility. Amendments are not announced.</div>" + rows;
+    return "<div class='panel-intro'>County register of deaths, as furnished to this facility. If a recipient appears below, Policy 14-A directs DESTROY. Amendments are not announced.</div>" + rows;
+  }
+
+  function pHelp() {
+    return "" +
+      "<div class='help-block'><div class='help-h'>THE PROCEDURE</div>" +
+      "<div class='help-t'>1. TAKE the item. 2. FLIP it and read both sides. 3. OPEN it and read the contents. 4. VERIFY: check the sender's town in the ADDRESS REGISTRY, and (from Shift 2) every name against the REGISTER OF DEATHS. 5. FORM 11, beneath the item, fills in as you verify and states what policy directs. 6. STAMP it.</div></div>" +
+      "<div class='help-block'><div class='help-h'>THE STAMPS</div>" +
+      "<div class='help-t'><b>RETURN TO SENDER</b> — the item goes back where it came from. Policy P-06 directs this when the sender's town is ACTIVE in the registry.</div>" +
+      "<div class='help-t'><b>ARCHIVE</b> — the item is kept here, on this facility's record, and can be re-read from the ARCHIVE shelf. Policy directs this for items with no verifiable sender (P-09), unrecognized towns (22-C), internal documents, and black-sealed items (P-40, unopened).</div>" +
+      "<div class='help-t'><b>DESTROY</b> — the incinerator. From Shift 2, Policy 14-A directs this for all mail addressed to the deceased. Destroyed items are gone. Usually.</div></div>" +
+      "<div class='help-block'><div class='help-h'>DEVIATIONS</div>" +
+      "<div class='help-t'>You may stamp anything with anything. Deviations from policy are recorded and lower your COMPLIANCE INDEX; preserving what the office would rather forget raises MEMORY CONTAMINATION. Nothing stops you. Something notices.</div></div>" +
+      "<div class='help-block'><div class='help-h'>ADVICE FOUND SCRATCHED UNDER THE DESK</div>" +
+      "<div class='help-t'>Read everything twice. Check every name. The letters know more than the records do.</div></div>";
   }
 
   function pPolicy() {
@@ -715,6 +867,7 @@
       "<div>ARCHIVED " + state.counts.archive + " · DESTROYED " + state.counts.destroy + " · RETURNED " + state.counts["return"] + "</div>" +
       "</div>" +
       "<div class='memo-sub'>DEVIATIONS</div>" + dev + notes +
+      "<div class='plain-note'>(For the record: COMPLIANCE is how closely you followed policy. MEMORY CONTAMINATION is how much of Marrow Creek you chose to keep. Different parties care about each.)</div>" +
       "<button class='btn' data-act='nextshift'>GO HOME. COME BACK TOMORROW.</button>" +
       "</div></div>";
   }
@@ -739,6 +892,7 @@
       "<div>MEMORY CONTAMINATION: " + memoryLevel() + "</div>" +
       "<div>ARCHIVED " + state.counts.archive + " · DESTROYED " + state.counts.destroy + " · RETURNED " + state.counts["return"] + (state.counts.keep ? " · KEPT " + state.counts.keep : "") + "</div>" +
       "</div>" +
+      "<div class='plain-note'>(COMPLIANCE is how closely you followed policy. MEMORY is how much of the town you kept. Play again and choose differently — the office remembers differently.)</div>" +
       "<div class='end-title'>MARROW CREEK REMEMBERS YOU.</div>" +
       "<div class='end-sub'>DEAD LETTER OFFICE — the full night shift is still being sorted.</div>" +
       "<button class='btn' data-act='restart'>WORK THE SHIFTS AGAIN</button>" +
@@ -778,8 +932,14 @@
           render();
           return;
         }
-        state.panel = el.getAttribute("data-panel");
+        var p = el.getAttribute("data-panel");
+        state.panel = p;
         state.readingArchived = null;
+        if (p === "registry") {
+          state.consulted.registry = true;
+          if (state.tut >= 1 && state.tut < 5) state.tut = 5;
+        }
+        if (p === "deaths") state.consulted.deaths = true;
         render();
       });
     });
@@ -799,6 +959,13 @@
     });
     var stop = $app.querySelector("[data-stop]");
     if (stop) stop.addEventListener("click", function (ev) { ev.stopPropagation(); });
+
+    /* orientation: pulse the next control */
+    var target = tutTarget();
+    if (target && !state.panel) {
+      var t = $app.querySelector(target);
+      if (t) t.classList.add("pulse");
+    }
   }
 
   function handleAct(act) {
@@ -822,6 +989,7 @@
         break;
       case "nextshift":  startShift(1); break;
       case "finishfinal": finishFinal(); break;
+      case "tutskip":    state.tut = 99; render(); break;
       case "restart":    document.body.className = ""; A.startHum(); newGame(); break;
     }
   }
