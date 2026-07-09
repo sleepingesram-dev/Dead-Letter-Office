@@ -290,7 +290,11 @@
     }
 
     A.stamp();
-    if (bin === "destroy") setTimeout(function () { A.burn(); }, 250);
+    if (bin === "destroy") {
+      setTimeout(function () { A.burn(); }, 250);
+      document.body.classList.add("burnflash");
+      setTimeout(function () { document.body.classList.remove("burnflash"); }, 1000);
+    }
 
     applyOutcome(id, item, bin);
 
@@ -565,11 +569,85 @@
       rHeader() +
       "<div class='desk-body'>" +
       rSidebar() +
+      "<div class='deskscene'>" +
+      rWallDecor() +
+      "<div class='lampglow'></div>" + rLampSvg() +
       "<div class='workspace' id='workspace'>" + rWorkspace() + "</div>" +
-      rStamps() +
+      rTrays() +
+      "</div>" +
       "</div>" +
       rLog() +
       (state.panel ? rPanel() : "") +
+      "</div>";
+  }
+
+  /* The room behind the desk: corkboard with red string, clock, basement door. */
+  function rWallDecor() {
+    var t = new Array(7);
+    return "<div class='wall'>" +
+      "<div class='wainscot'></div>" +
+      /* corkboard with pinned photos and red string */
+      "<div class='corkboard'>" +
+      "<svg viewBox='0 0 300 150' preserveAspectRatio='none'>" +
+      "<rect x='36' y='18' width='34' height='26' fill='#c9bd97' transform='rotate(-4 53 31)'/>" +
+      "<rect x='120' y='12' width='34' height='26' fill='#b7a983' transform='rotate(3 137 25)'/>" +
+      "<rect x='214' y='24' width='34' height='26' fill='#c9bd97' transform='rotate(-2 231 37)'/>" +
+      "<rect x='70' y='84' width='34' height='26' fill='#b7a983' transform='rotate(5 87 97)'/>" +
+      "<rect x='176' y='96' width='34' height='26' fill='#c9bd97' transform='rotate(-5 193 109)'/>" +
+      "<rect x='40' y='24' width='26' height='3' fill='#6b5f43' transform='rotate(-4 53 31)'/>" +
+      "<rect x='124' y='18' width='26' height='3' fill='#6b5f43' transform='rotate(3 137 25)'/>" +
+      "<rect x='218' y='30' width='26' height='3' fill='#6b5f43' transform='rotate(-2 231 37)'/>" +
+      "<path d='M53 31 L137 25 L231 37 L193 109 L87 97 Z' stroke='#8e2b20' stroke-width='1.4' fill='none'/>" +
+      "<path d='M137 25 L87 97 M53 31 L193 109' stroke='#8e2b20' stroke-width='1' fill='none' opacity='.7'/>" +
+      "<circle cx='53' cy='31' r='2.4' fill='#8e2b20'/><circle cx='137' cy='25' r='2.4' fill='#8e2b20'/>" +
+      "<circle cx='231' cy='37' r='2.4' fill='#8e2b20'/><circle cx='87' cy='97' r='2.4' fill='#8e2b20'/>" +
+      "<circle cx='193' cy='109' r='2.4' fill='#8e2b20'/>" +
+      "</svg></div>" +
+      /* wall clock */
+      "<div class='clock'><svg viewBox='0 0 60 60'>" +
+      "<circle cx='30' cy='30' r='27' fill='#221f15' stroke='#6b5f43' stroke-width='2'/>" +
+      "<circle cx='30' cy='30' r='1.8' fill='#b7a983'/>" +
+      "<line x1='30' y1='30' x2='30' y2='13' stroke='#b7a983' stroke-width='2'/>" +
+      "<line x1='30' y1='30' x2='41' y2='36' stroke='#b7a983' stroke-width='1.4'/>" +
+      "</svg></div>" +
+      /* basement door hint */
+      "<div class='doorsign'>BASEMENT<br>▼<br><span>NO CLERK ACCESS</span></div>" +
+      "</div>";
+  }
+
+  function rLampSvg() {
+    return "<div class='banklamp'><svg viewBox='0 0 160 110'>" +
+      "<ellipse cx='80' cy='104' rx='34' ry='5' fill='#241c10'/>" +
+      "<rect x='76' y='58' width='8' height='46' rx='3' fill='#5e4a22'/>" +
+      "<path d='M80 60 L80 34' stroke='#5e4a22' stroke-width='6' stroke-linecap='round'/>" +
+      "<path d='M28 34 Q80 8 132 34 L124 46 Q80 24 36 46 Z' fill='#2f4a2c'/>" +
+      "<path d='M28 34 Q80 8 132 34' stroke='#476b40' stroke-width='3' fill='none'/>" +
+      "<rect x='34' y='42' width='92' height='7' rx='3.5' fill='#e9c979' opacity='.95'/>" +
+      "</svg></div>";
+  }
+
+  /* Sorting trays along the desk edge. DELIVER and REVIEW ship with the full game. */
+  function rTrays() {
+    var item = state.itemIdx < state.queue.length ? currentItem() : null;
+    var active = item && state.phase !== "tray";
+    var dis = active ? "" : " disabled";
+    function tray(cls, stamp, label, sub, sealed, act) {
+      var attr = sealed ? " data-act='" + act + "'" : dis + " data-stamp='" + stamp + "'";
+      return "<button class='traybox " + cls + (sealed ? " sealedtray" : "") + "'" + attr + ">" +
+        "<span class='tray-paper'></span>" +
+        "<span class='tray-plate'>" + label + "</span>" +
+        "<span class='tray-sub'>" + sub + "</span>" +
+        "</button>";
+    }
+    var keep = (item && item.keepable && active)
+      ? tray("t-keep", "keep", "POCKET", "KEEP IT", false) : "";
+    return "<div class='traysrow'>" +
+      tray("t-deliver", null, "DELIVER", "SEALED", true, "sealed-deliver") +
+      tray("t-return", "return", "RETURN", "TO SENDER") +
+      tray("t-archive", "archive", "ARCHIVE", "PRESERVE") +
+      tray("t-destroy", "destroy", "DESTROY", "INCINERATE") +
+      tray("t-review", null, "REVIEW", "SEALED", true, "sealed-review") +
+      keep +
       "</div>";
   }
 
@@ -587,17 +665,23 @@
 
   function rSidebar() {
     var deaths = hasUnlock("deaths");
+    var news = hasUnlock("news");
     var uv = hasUnlock("uv");
+    function drawer(panel, label, locked) {
+      return "<button class='side-btn" + (locked ? " locked" : "") + "' data-panel='" + panel + "'>" +
+        "<span class='drawer-pull'></span><span class='drawer-plate'>" + label + (locked ? " — LOCKED" : "") + "</span></button>";
+    }
     return "<div class='sidebar'>" +
-      "<div class='side-label'>REFERENCE</div>" +
-      "<button class='side-btn' data-panel='registry'>ADDRESS REGISTRY</button>" +
-      "<button class='side-btn" + (deaths ? "" : " locked") + "' data-panel='deaths'>" + (deaths ? "REGISTER OF DEATHS" : "REGISTER OF DEATHS — LOCKED") + "</button>" +
-      "<button class='side-btn' data-panel='policy'>POLICY MANUAL</button>" +
-      "<button class='side-btn' data-panel='map'>WALL MAP</button>" +
-      "<button class='side-btn' data-panel='archive'>ARCHIVE</button>" +
-      "<button class='side-btn help' data-panel='help'>DESK REFERENCE — HOW TO SORT</button>" +
+      "<div class='side-label'>REFERENCE DRAWERS</div>" +
+      drawer("registry", "ADDRESS REGISTRY", false) +
+      drawer("deaths", "DEATH RECORDS", !deaths) +
+      drawer("news", "NEWSPAPER ARCHIVE", !news) +
+      drawer("policy", "POLICY MANUAL", false) +
+      drawer("map", "WALL MAP", false) +
+      drawer("archive", "ARCHIVE", false) +
+      drawer("help", "DESK REFERENCE", false) +
       "<div class='side-label'>TOOLS</div>" +
-      (uv ? "<button class='side-btn uv-btn" + (state.uvOn ? " on" : "") + "' data-act='uv'>UV LAMP " + (state.uvOn ? "· ON" : "· OFF") + "</button>"
+      (uv ? "<button class='side-btn uv-btn" + (state.uvOn ? " on" : "") + "' data-act='uv'><span class='drawer-plate'>UV LAMP " + (state.uvOn ? "· ON" : "· OFF") + "</span></button>"
           : "<div class='side-note'>Letter opener. Three stamps. A lamp.</div>") +
       "</div>";
   }
@@ -625,7 +709,7 @@
     1: { text: "STEP 2: Inspect it. Flip it over, front and back.", target: "[data-act=flip]" },
     2: { text: "STEP 3: Open it with the letter opener and read it.", target: "[data-act=open]" },
     3: { text: "STEP 4: Verify the sender. Open the ADDRESS REGISTRY and find the sender's town.", target: "[data-panel=registry]" },
-    5: { text: "STEP 5: FORM 11, beneath the item, now states what policy directs. Apply that stamp — or another. Both are recorded.", target: "[data-stamp=return]" },
+    5: { text: "STEP 5: FORM 11, beneath the item, now states what policy directs. Place the item in that tray — or another. Both are recorded.", target: "[data-stamp=return]" },
     6: { text: "Orientation complete. Every item works the same way: inspect, verify, decide. What you do with what you learn is your own affair.", target: null }
   };
 
@@ -654,12 +738,18 @@
       "<div class='env-back-text'>" + esc(e.back) + "</div>" +
       "<div class='env-notes'>" + e.notes.map(function (n) { return "<div class='env-note'>· " + esc(n) + "</div>"; }).join("") + "</div>" +
       "</div>";
+    var details = "<div class='env-details'>" +
+      "<div class='env-dline'><b>POSTMARK:</b> " + esc(e.postmark) + "</div>" +
+      "<div class='env-dline'><b>STAMP:</b> " + esc(e.stamp) + "</div>" +
+      "<div class='env-dline'><b>CONDITION:</b> " + esc(e.back) + "</div>" +
+      "</div>";
     return "<div class='envelope " + (item.kind === "black" ? "black" : "") + (item.kind === "burned" ? " burned" : "") + "'>" +
       (state.flipped ? back : front) +
-      "</div>" +
+      (item.kind === "black" ? "<span class='waxseal'></span>" : "") +
+      "</div>" + details +
       "<div class='env-actions'>" +
       "<button class='btn' data-act='flip'>" + (state.flipped ? "FLIP TO FRONT" : "FLIP OVER") + "</button>" +
-      "<button class='btn' data-act='open'>" + (item.sealed ? "THE SEAL…" : "OPEN") + "</button>" +
+      "<button class='btn' data-act='open'>" + (item.sealed ? "THE SEAL…" : "VIEW CONTENTS") + "</button>" +
       "</div>";
   }
 
@@ -677,25 +767,16 @@
     }
     return "" +
       "<div class='letter-wrap'>" +
-      "<div class='letter-envline'>" + esc(item.env.to.join(", ")) + " · " + esc(item.env.postmark) + "</div>" +
+      "<div class='letter-duo'>" +
+      "<div class='env-mini" + (item.kind === "black" ? " black" : "") + "'>" +
+      "<div class='env-mini-tag'>TO</div><div class='env-mini-v'>" + item.env.to.map(esc).join("<br>") + "</div>" +
+      "<div class='env-mini-tag'>FROM</div><div class='env-mini-v'>" + item.env.from.map(esc).join("<br>") + "</div>" +
+      "<div class='env-mini-tag'>POSTMARK</div><div class='env-mini-v'>" + esc(item.env.postmark) + "</div>" +
+      "</div>" +
       "<div class='paper " + cls + (item.kind === "burned" ? " burned" : "") + "'>" +
       paras(item.body) + uvHtml +
+      "</div>" +
       "</div>" + footer +
-      "</div>";
-  }
-
-  function rStamps() {
-    var item = state.itemIdx < state.queue.length ? currentItem() : null;
-    var active = item && state.phase !== "tray";
-    var dis = active ? "" : " disabled";
-    var keep = (item && item.keepable && active)
-      ? "<button class='stamp-btn keep' data-stamp='keep'>POCKET<br><span>KEEP IT</span></button>" : "";
-    return "<div class='stampbar'>" +
-      "<div class='side-label'>STAMPS</div>" +
-      "<button class='stamp-btn ret" + "'" + dis + " data-stamp='return'>RETURN<br><span>TO SENDER</span></button>" +
-      "<button class='stamp-btn arc'" + dis + " data-stamp='archive'>ARCHIVE<br><span>PRESERVE</span></button>" +
-      "<button class='stamp-btn des'" + dis + " data-stamp='destroy'>DESTROY<br><span>INCINERATE</span></button>" +
-      keep +
       "</div>";
   }
 
@@ -717,6 +798,7 @@
       case "policy":   inner = pPolicy(); break;
       case "map":      inner = pMap(); break;
       case "archive":  inner = pArchive(); break;
+      case "news":     inner = pNews(); break;
       case "help":     inner = pHelp(); break;
     }
     return "<div class='panel-overlay' data-act='closepanel'>" +
@@ -730,7 +812,7 @@
   function panelTitle() {
     return { registry: "MUNICIPAL ADDRESS REGISTRY", deaths: "COUNTY REGISTER OF DEATHS",
              policy: "POLICY MANUAL", map: "WALL MAP — MARROW CREEK", archive: "ARCHIVE — PROCESSED ITEMS",
-             help: "DESK REFERENCE — SORTING PROCEDURE" }[state.panel] || "";
+             news: "NEWSPAPER ARCHIVE — MICROFILM", help: "DESK REFERENCE — SORTING PROCEDURE" }[state.panel] || "";
   }
 
   function activeMeta() {
@@ -754,7 +836,8 @@
         "<span class='reg-status " + cls + "'>" + esc(r.status) + "</span>" +
         "<span class='reg-note'>" + esc(r.note) + "</span>" + extra + "</div>";
     }).join("");
-    return "<div class='panel-intro'>All municipalities recognized by the county appear below. If the sender's town is ACTIVE, the item can go back (P-06). The registry is complete. The registry has always been complete.</div>" + rows;
+    return "<div class='panel-intro'>All municipalities recognized by the county appear below. If the sender's town is ACTIVE, the item can go back (P-06). The registry is complete. The registry has always been complete.</div>" +
+      "<input class='rec-search' data-filter='.reg-row' placeholder='SEARCH…' spellcheck='false'>" + rows;
   }
 
   function pDeaths() {
@@ -769,14 +852,15 @@
         (r.note ? "<div class='death-note'>" + esc(r.note) + "</div>" : "") +
         "</div>";
     }).join("");
-    return "<div class='panel-intro'>County register of deaths, as furnished to this facility. If a recipient appears below, Policy 14-A directs DESTROY. Amendments are not announced.</div>" + rows;
+    return "<div class='panel-intro'>County register of deaths, as furnished to this facility. If a recipient appears below, Policy 14-A directs DESTROY. Amendments are not announced.</div>" +
+      "<input class='rec-search' data-filter='.death-row' placeholder='SEARCH BY NAME…' spellcheck='false'>" + rows;
   }
 
   function pHelp() {
     return "" +
       "<div class='help-block'><div class='help-h'>THE PROCEDURE</div>" +
-      "<div class='help-t'>1. TAKE the item. 2. FLIP it and read both sides. 3. OPEN it and read the contents. 4. VERIFY: check the sender's town in the ADDRESS REGISTRY, and (from Shift 2) every name against the REGISTER OF DEATHS. 5. FORM 11, beneath the item, fills in as you verify and states what policy directs. 6. STAMP it.</div></div>" +
-      "<div class='help-block'><div class='help-h'>THE STAMPS</div>" +
+      "<div class='help-t'>1. TAKE the item. 2. FLIP it and read both sides. 3. VIEW CONTENTS and read. 4. VERIFY: check the sender's town in the ADDRESS REGISTRY, and (from Shift 2) every name against the DEATH RECORDS. 5. FORM 11, beneath the item, fills in as you verify and states what policy directs. 6. Stamp it into a tray. The DELIVER and REVIEW trays are sealed; do not ask about the DELIVER and REVIEW trays.</div></div>" +
+      "<div class='help-block'><div class='help-h'>THE TRAYS</div>" +
       "<div class='help-t'><b>RETURN TO SENDER</b> — the item goes back where it came from. Policy P-06 directs this when the sender's town is ACTIVE in the registry.</div>" +
       "<div class='help-t'><b>ARCHIVE</b> — the item is kept here, on this facility's record, and can be re-read from the ARCHIVE shelf. Policy directs this for items with no verifiable sender (P-09), unrecognized towns (22-C), internal documents, and black-sealed items (P-40, unopened).</div>" +
       "<div class='help-t'><b>DESTROY</b> — the incinerator. From Shift 2, Policy 14-A directs this for all mail addressed to the deceased. Destroyed items are gone. Usually.</div></div>" +
@@ -795,18 +879,79 @@
     return rows;
   }
 
+  /* Small map glyphs, drawn at (x, y) in map coordinates. */
+  function mapGlyph(id, x, y) {
+    var ink = "#4f4326";
+    switch (id) {
+      case "church":
+        return "<path d='M" + (x - 7) + " " + (y + 6) + " h14 v-8 l-7 -6 l-7 6 z' fill='" + ink + "'/>" +
+               "<path d='M" + x + " " + (y - 9) + " v-7 M" + (x - 3) + " " + (y - 13) + " h6' stroke='" + ink + "' stroke-width='1.6'/>";
+      case "cemetery":
+        return "<path d='M" + (x - 5) + " " + (y + 6) + " v-8 a5 5 0 0 1 10 0 v8 z' fill='" + ink + "'/>" +
+               "<path d='M" + x + " " + (y + 1) + " v-6 M" + (x - 2.5) + " " + (y - 3) + " h5' stroke='#b3a884' stroke-width='1.2'/>";
+      case "orchard":
+        return "<circle cx='" + x + "' cy='" + (y - 4) + "' r='6' fill='#5d6b45'/>" +
+               "<rect x='" + (x - 1.5) + "' y='" + y + "' width='3' height='7' fill='" + ink + "'/>";
+      case "canal":
+        return "<path d='M" + (x - 10) + " " + y + " q5 -5 10 0 t10 0 M" + (x - 10) + " " + (y + 6) + " q5 -5 10 0 t10 0' stroke='#5b7069' stroke-width='2' fill='none'/>";
+      case "district":
+        return "<rect x='" + (x - 16) + "' y='" + (y - 6) + "' width='32' height='12' fill='#211d13'/>";
+      case "bellhouse":
+        return "<path d='M" + (x - 6) + " " + (y + 5) + " h12 v-7 l-6 -5 l-6 5 z' fill='#8e2b20'/>" +
+               "<circle cx='" + x + "' cy='" + y + "' r='14' stroke='#8e2b20' stroke-width='1.6' fill='none' stroke-dasharray='3 2'/>";
+      default: /* generic building */
+        return "<path d='M" + (x - 6) + " " + (y + 5) + " h12 v-7 l-6 -5 l-6 5 z' fill='" + ink + "'/>";
+    }
+  }
+
   function pMap() {
-    var dots = D.mapLocations.filter(function (m) { return m.revealed || (m.id === "bellhouse" && state.bellHouse); })
-      .map(function (m) {
-        var cls = m.redacted ? "redacted" : (m.id === "bellhouse" ? "new" : "");
-        return "<div class='map-dot " + cls + "' style='left:" + m.x + "%;top:" + m.y + "%'>" +
-          "<span class='dot'></span><span class='map-label'>" + esc(m.label) + "</span></div>";
-      }).join("");
+    var locs = D.mapLocations.filter(function (m) { return m.revealed || (m.id === "bellhouse" && state.bellHouse); });
+    var glyphs = locs.map(function (m) {
+      var x = m.x * 6, y = m.y * 3.8;
+      var labelFill = m.id === "bellhouse" ? "#8e2b20" : (m.redacted ? "#211d13" : "#574a2e");
+      var label = m.redacted
+        ? "<rect x='" + (x - 22) + "' y='" + (y + 10) + "' width='44' height='9' fill='#211d13'/>"
+        : "<text x='" + x + "' y='" + (y + 19) + "' text-anchor='middle' font-size='9' letter-spacing='1' fill='" + labelFill + "'>" + esc(m.label) + "</text>";
+      return mapGlyph(m.id, x, y) + label;
+    }).join("");
+    var svg = "" +
+      "<svg class='mapsvg' viewBox='0 0 600 380'>" +
+      /* parchment mottling */
+      "<rect width='600' height='380' fill='#b3a884'/>" +
+      "<ellipse cx='140' cy='90' rx='150' ry='90' fill='#bfb28c' opacity='.5'/>" +
+      "<ellipse cx='470' cy='300' rx='170' ry='100' fill='#a59771' opacity='.4'/>" +
+      "<ellipse cx='320' cy='180' rx='240' ry='150' fill='#b8ab85' opacity='.3'/>" +
+      /* the creek */
+      "<path d='M392 0 C398 60 372 110 396 170 C418 226 388 300 402 380' stroke='#6f7d6a' stroke-width='7' fill='none' opacity='.65'/>" +
+      /* roads */
+      "<path d='M72 251 L180 281 L312 209 L330 129 L132 99' stroke='#7d6f4d' stroke-width='2.4' fill='none' stroke-dasharray='6 3'/>" +
+      "<path d='M312 209 L492 236 L444 296 L372 334' stroke='#7d6f4d' stroke-width='2.4' fill='none' stroke-dasharray='6 3'/>" +
+      "<path d='M264 53 L228 160 L312 209' stroke='#7d6f4d' stroke-width='2' fill='none' stroke-dasharray='6 3'/>" +
+      "<path d='M330 129 L420 76' stroke='#7d6f4d' stroke-width='2' fill='none' stroke-dasharray='6 3'/>" +
+      glyphs +
+      "<text x='16' y='24' font-size='13' letter-spacing='3' fill='#574a2e'>MARROW CREEK — SURVEY (WITHDRAWN)</text>" +
+      "</svg>";
+    var keyRows = locs.map(function (m) {
+      var sym = "<svg viewBox='-14 -16 28 28' class='key-ic'>" + mapGlyph(m.id, 0, 0) + "</svg>";
+      return "<div class='key-row" + (m.id === "bellhouse" ? " new" : "") + "'>" + sym + "<span>" +
+        (m.redacted ? "UNKNOWN" : esc(m.label)) + "</span></div>";
+    }).join("");
     var note = state.bellHouse
       ? "<div class='map-note'>A pin you did not place: 12 BRIAR LANE.</div>"
       : "<div class='map-note'>Parts of the map are faded, as if handled too often — or not often enough.</div>";
-    return "<div class='wallmap'><div class='map-title'>MARROW CREEK — SURVEY (WITHDRAWN)</div>" + dots +
-      "<div class='map-creek'></div></div>" + note;
+    return "<div class='mapwrap'><div class='wallmap'>" + svg + "</div>" +
+      "<div class='mapkey'><div class='key-head'>KEY</div>" + keyRows + "</div></div>" + note;
+  }
+
+  function pNews() {
+    var rows = D.newspaper.map(function (n) {
+      return "<div class='news-row'>" +
+        "<div class='news-mast'>" + esc(n.paper) + " — " + esc(n.date) + "</div>" +
+        "<div class='news-head'>" + esc(n.head) + "</div>" +
+        "<div class='news-body'>" + esc(n.body) + "</div>" +
+        "</div>";
+    }).join("");
+    return "<div class='panel-intro'>Clippings furnished on microfilm, county library, as available. Some editions could not be located and were never printed, in that order.</div>" + rows;
   }
 
   function pArchive() {
@@ -960,6 +1105,17 @@
     var stop = $app.querySelector("[data-stop]");
     if (stop) stop.addEventListener("click", function (ev) { ev.stopPropagation(); });
 
+    /* record search: filter rows in place, no re-render (keeps input focus) */
+    $app.querySelectorAll("input[data-filter]").forEach(function (input) {
+      var sel = input.getAttribute("data-filter");
+      input.addEventListener("input", function () {
+        var q = input.value.toUpperCase();
+        $app.querySelectorAll(sel).forEach(function (row) {
+          row.style.display = row.textContent.toUpperCase().indexOf(q) >= 0 ? "" : "none";
+        });
+      });
+    });
+
     /* orientation: pulse the next control */
     var target = tutTarget();
     if (target && !state.panel) {
@@ -990,6 +1146,12 @@
       case "nextshift":  startShift(1); break;
       case "finishfinal": finishFinal(); break;
       case "tutskip":    state.tut = 99; render(); break;
+      case "sealed-deliver":
+        logLine("The DELIVER tray is sealed by directorate order. There is nowhere to deliver to. Yet.", true);
+        render(); break;
+      case "sealed-review":
+        logLine("REVIEW routes upstairs. The stairs are not installed.", true);
+        render(); break;
       case "restart":    document.body.className = ""; A.startHum(); newGame(); break;
     }
   }
