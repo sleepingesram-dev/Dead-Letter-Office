@@ -12,19 +12,56 @@ The core fantasy:
 
 ## Play the MVP
 
-The playable MVP (the two-shift vertical slice defined in the [production plan](docs/10-production.md)) is in this repository. It is plain HTML/CSS/JS — no engine, no build step, no dependencies.
+The playable MVP (the two-shift vertical slice defined in the [production plan](docs/10-production.md)) is in this repository. The browser version remains plain HTML/CSS/JS with no build step.
 
 **Play in the browser:** https://sleepingesram-dev.github.io/Dead-Letter-Office/ — deployed automatically to GitHub Pages by [a workflow](.github/workflows/deploy-pages.yml) on every push to `main`.
 
-**Or run locally:**
+**Or run the browser version locally:**
 
 ```
 git clone https://github.com/sleepingesram-dev/Dead-Letter-Office.git
 cd Dead-Letter-Office
-python3 -m http.server 8000     # or any static server; opening index.html directly also works
+python3 -m http.server 8000
 ```
 
 Then open `http://localhost:8000` in a browser.
+
+## Desktop build
+
+The same game can run as a packaged Electron desktop application for Windows and Linux while the browser build continues to work normally.
+
+Requirements:
+
+- Node.js 22 or newer
+- npm
+
+Run the desktop version:
+
+```
+npm install
+npm start
+```
+
+Create packages for the current operating system:
+
+```
+npm run make
+```
+
+Platform-specific commands:
+
+```
+npm run make:windows
+npm run make:linux
+```
+
+Generated installers and ZIP archives are written to `out/make/`. Pull requests that change the desktop shell also run automated Windows and Linux packaging through [the desktop build workflow](.github/workflows/build-desktop.yml).
+
+Desktop controls:
+
+- `F11` or `Alt+Enter` toggles fullscreen
+- `Escape` exits fullscreen before returning to normal game input
+- The in-game menu includes fullscreen and exit controls in desktop builds
 
 **How to play:** the first letter walks you through the procedure step by step. For every item: take it from the tray, inspect the envelope (flip it, view its contents), then verify what it claims — the sender's town against the ADDRESS REGISTRY, and (from Shift 2) every name against the DEATH RECORDS and the NEWSPAPER ARCHIVE. **FORM 11**, pinned beneath each item, fills in as you check the records and states plainly what policy directs. Then stamp the item into a sorting tray — RETURN TO SENDER, ARCHIVE, or DESTROY. (The DELIVER and REVIEW trays are sealed. Do not ask about the DELIVER and REVIEW trays.) Policy tells you what the office wants; the letters tell you something else, and every deviation is recorded. A DESK REFERENCE drawer explains all of it in one place. Your choices carry across both shifts and change what you see. Headphones recommended; sound is synthesized live and can be toggled off.
 
@@ -44,7 +81,8 @@ Then open `http://localhost:8000` in a browser.
 | Structure | 7 main shifts + final shift + secret epilogue |
 | Endings | 4 main endings + 1 secret ending |
 | Combat | None |
-| Engine | Godot or Unity (recommended) |
+| Runtime | HTML/CSS/JavaScript packaged with Electron |
+| Distribution target | Steam desktop release with a browser-playable demo |
 | Price | $9.99–$14.99, free demo |
 
 ## Design Documentation

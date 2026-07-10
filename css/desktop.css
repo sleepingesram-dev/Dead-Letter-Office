@@ -1,0 +1,26 @@
+html.desktop-build,
+html.desktop-build body {
+  user-select: none;
+}
+
+html.desktop-build input,
+html.desktop-build textarea,
+html.desktop-build .paper,
+html.desktop-build .memo-card,
+html.desktop-build .panel-body {
+  user-select: text;
+}
+
+.desktop-hint {
+  color: #7f7358;
+}
+
+html.desktop-build .desktop-exit {
+  color: #b8685f;
+  border-color: rgba(163, 51, 39, .45);
+}
+
+html.desktop-build .desktop-exit:hover {
+  color: #e0a097;
+  border-color: rgba(185, 77, 64, .8);
+}
