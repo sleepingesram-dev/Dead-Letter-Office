@@ -1,0 +1,32 @@
+{
+  "name": "dead-letter-office",
+  "productName": "Dead Letter Office",
+  "version": "0.1.0",
+  "description": "A dark narrative job-sim about sorting undeliverable mail from a town that should not exist.",
+  "main": "electron/main.cjs",
+  "private": true,
+  "author": "sleepingesram-dev",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron-forge start",
+    "package": "electron-forge package",
+    "make": "electron-forge make",
+    "make:linux": "electron-forge make --platform=linux --arch=x64",
+    "make:windows": "electron-forge make --platform=win32 --arch=x64",
+    "test:desktop": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check js/desktop.js && node scripts/validate-desktop.cjs"
+  },
+  "dependencies": {
+    "electron-squirrel-startup": "1.0.1"
+  },
+  "devDependencies": {
+    "@electron-forge/cli": "7.11.2",
+    "@electron-forge/maker-deb": "7.11.2",
+    "@electron-forge/maker-rpm": "7.11.2",
+    "@electron-forge/maker-squirrel": "7.11.2",
+    "@electron-forge/maker-zip": "7.11.2",
+    "electron": "43.0.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
